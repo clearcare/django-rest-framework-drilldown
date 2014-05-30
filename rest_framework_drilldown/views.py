@@ -414,3 +414,4 @@ def int_or_none(value):
     except (ValueError, TypeError):
         result = None
     return result
+
