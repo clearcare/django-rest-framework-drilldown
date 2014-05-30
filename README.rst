@@ -91,7 +91,7 @@ Solutions for Common Problems
 * Custom Queries:
     Assume that invoices > $1000 require prior authorization, and you'd like to support that as a simple query:
 
-    ``invoices?requires_authorization=True``
+    ``/invoices/?requires_authorization=True``
 
     1. Add 'requires_authorization' to the ignore list in the API view:
         ``ignore = ['fakefield', 'requires_authorizaton']``
