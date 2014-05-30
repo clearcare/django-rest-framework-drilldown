@@ -3,7 +3,7 @@ Drilldown API
 =============
 
 Extends Django REST Framework to create instant full-featured GET APIs with fields, filters, offset,
-limit, etc., including the ability to access chained objects (foreignKey, manyToMany, oneToOne fields).
+limit, etc., including the ability to drill down into chained objects (foreignKey, manyToMany, oneToOne fields).
 
 You create just one simple view per API; you do not need to create separate serializers for the
 chained objects.
@@ -52,23 +52,22 @@ Example adapted from code in test.py.
 * Specify fields to include, including "drilldown" fields:
     ``/invoices/?fields=id,client.profile.first_name,client.profile.last_name``
 
-    (invoices showing just the invoice ID and the client's first and last name)
+    Returns invoices showing just the invoice ID and the client's first and last name.
 
 * Filter on fields:
     ``/invoices/?total__gte=100&salesperson.last_name__iexact=smith``
-
-    (invoices where total >= $100 and salesperson is "Smith")
+    Lists invoices where total >= $100 and salesperson is "Smith".
 
 * Use the 'ALL' keyword to return all fields in an object:
     ``/invoices/?fields=salesperson.ALL``
 
-    (list the salesperson for each invoice; will display all salesperson fields
-    EXCEPT commission_pct which is in the "hide" list in the API above)
+    Lists the salesperson for each invoice; will display all salesperson fields
+    EXCEPT commission_pct which is in the "hide" list in the API above.
 
 * Use order_by, including - sign for reverse:
     ``/invoices/?order_by=client.profile.last_name,-amount``
 
-    (invoices ordered by associated client's last name, from highest to lowest amount)
+    Returns invoices ordered by associated client's last name, from highest to lowest amount.
 
 Total number of results for each query (before applying limit and offset) are returned in a custom header code:
     ``X-Total-Count: 2034``
