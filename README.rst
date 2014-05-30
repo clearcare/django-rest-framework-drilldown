@@ -39,8 +39,8 @@ Example adapted from code in test.py.
             return Invoice.objects.all()
 
 
-2. In urls.py, create a URL for the view::
-    url(r'^invoices/$', InvoiceList.as_view(), name='invoices'),
+2. In urls.py, create a URL for the view:
+    ``url(r'^invoices/$', InvoiceList.as_view(), name='invoices'),``
 
 3. Start running queries! Some of the things you can do:
 
