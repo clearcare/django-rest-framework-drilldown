@@ -96,8 +96,6 @@ class DrilldownAPITest(TestCase):
 
         self.factory = RequestFactory()
 
-
-
     def test_the_api(self):
         my_view = DrilldownTestAPI.as_view()
 
@@ -159,22 +157,22 @@ class DrilldownAPITest(TestCase):
 
         # zero results
         response = get_response({'salesperson.profile.first_name': 'Fred'})
-        self.assertEqual(response.status_code, 200) # not an error
+        self.assertEqual(response.status_code, 200)  # not an error
         self.assertEqual(len(response.data), 0)
 
         # a bad filter
         response = get_response({'salesperson.profile.dog_name': 'Freddyboy'})
-        self.assertEqual(response.status_code, 400) # error
+        self.assertEqual(response.status_code, 400)  # error
         self.assertTrue('dog_name' in response.get('X-Query_Error'))
 
         # an ignore field
         response = get_response({'fakefield__lt': '3000', 'limit': 3})
-        self.assertEqual(response.status_code, 200) # no error, as 'fakefield' is in the ignore list
+        self.assertEqual(response.status_code, 200)  # no error, as 'fakefield' is in the ignore list
         self.assertEqual(len(response.data), 3)
 
         # ALL selector
         response = get_response({'fields': 'client.profile.ALL'})
-        self.assertEqual(len(response.data[0]['client']['profile']), 4) # 4 fields including id
+        self.assertEqual(len(response.data[0]['client']['profile']), 4)  # 4 fields including id
 
         # a hide field -- should not show up in results
         response = get_response({'salesperson__isnull': 'false', 'fields': 'salesperson.ALL'})

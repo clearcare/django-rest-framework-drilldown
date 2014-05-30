@@ -39,13 +39,18 @@ class DrillDownAPIView(APIView):
     """
     GLOBAL_THROTTLE = 2000  # global max result count
 
-    drilldowns = []  # override this to allow drilldowns into sub-objects
-    ignore = []  # override this with fieldnames that should be ignored in the GET request
-    hide = []
+    drilldowns = None  # override this to allow drilldowns into sub-objects
+    ignore = None  # override this with fieldnames that should be ignored in the GET request
+    hide = None
     model = None     # override this with the model
 
     def __init__(self, *args, **kwargs):
         self.error = ''
+
+        # deal with None's that should be arrays
+        self.ignore = self.ignore or []
+        self.drilldowns = self.drilldowns or []
+        self.hide = self.hide or []
 
         # These will go into the query
         self.select_relateds = []
@@ -136,7 +141,7 @@ class DrillDownAPIView(APIView):
         self.limit = int_or_none(self.request.QUERY_PARAMS.get('limit')) or 0
         self.limit = min(getattr(self, 'THROTTLE', self.GLOBAL_THROTTLE), self.limit or self.GLOBAL_THROTTLE)
         if self.limit and self.offset:
-            qs = qs[self.offset:self.limit+self.offset]
+            qs = qs[self.offset:self.limit + self.offset]
         elif self.limit:
             qs = qs[:self.limit]
         elif self.offset:
@@ -166,6 +171,7 @@ class DrillDownAPIView(APIView):
     def _validate_drilldowns(self, drilldowns):
         ERROR_STRING = 'Error in drilldowns'
         validated_drilldowns = []
+
         def validate_me(current_model, dd_string, current_string=''):
             pair = dd_string.split('__', 1)
             fieldname = (pair[0]).strip()
@@ -367,7 +373,7 @@ def DrilldownSerializerFactory(the_model):
                         # Attach sub-serializers for relationship fields
                     for field_name in fields_map:
                         sub_fm = fields_map[field_name]
-                        if sub_fm and sub_fm != {'id': {}} : # only do this for fields with sub-fields requested
+                        if sub_fm and sub_fm != {'id': {}}:  # only do this for fields with sub-fields requested
                             ftype = get_field_type(model, field_name)
                             if ftype in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
                                 m = get_model(model, field_name)
@@ -414,4 +420,3 @@ def int_or_none(value):
     except (ValueError, TypeError):
         result = None
     return result
-
