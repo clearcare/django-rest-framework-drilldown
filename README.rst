@@ -13,7 +13,11 @@ Quickstart
 ----------
 Example adapted from code in tests.py.
 
-1. Create a view that's a subclass of DrillDownAPIView (use your own models; "Invoice" is just an example)::
+1. Install the package:
+    ``pip install git+https://github.com/peterh32/django-rest-framework-drilldown.git``
+
+
+2. Create a view that's a subclass of DrillDownAPIView (use your own models; "Invoice" is just an example)::
 
     from rest_framework_drilldown import DrillDownAPIView
 
@@ -39,10 +43,10 @@ Example adapted from code in tests.py.
             return Invoice.objects.all()
 
 
-2. In urls.py, create a URL for the view:
+3. In urls.py, create a URL for the view:
     ``url(r'^invoices/$', InvoiceList.as_view(), name='invoices'),``
 
-3. Start running queries! Some of the things you can do:
+4. Start running queries! Some of the things you can do:
 
 * Limit and offset:
     ``/invoices/?limit=10&offset=60``
@@ -56,6 +60,7 @@ Example adapted from code in tests.py.
 
 * Filter on fields:
     ``/invoices/?total__gte=100&salesperson.last_name__iexact=smith``
+
     Lists invoices where total >= $100 and salesperson is "Smith".
 
 * Use the 'ALL' keyword to return all fields in an object:
@@ -81,7 +86,7 @@ Also supports format parameter, e.g. ?format=json
 Solutions for Common Problems
 -----------------------------
 * Access Control:
-    Override the get() method in the API view and add your access control to it::
+    In your API view, override the get() method and add your access control to it::
 
         @method_decorator(accounting_permission_required)
         def get(self, request):
@@ -94,9 +99,9 @@ Solutions for Common Problems
     ``/invoices/?requires_authorization=True``
 
     1. Add 'requires_authorization' to the ignore list in the API view:
-        ``ignore = ['fakefield', 'requires_authorizaton']``
+        ``ignore = ['requires_authorizaton']``
 
-    2. Add the logic to ``get_base_query()`` in the API view::
+    2. Add the logic for handling the new filter to ``get_base_query()`` in the API view::
 
         def get_base_query(self):
             qs = Invoice.objects.all()
