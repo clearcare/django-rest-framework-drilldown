@@ -11,7 +11,7 @@ chained objects.
 
 Quickstart
 ----------
-Example adapted from code in test.py.
+Example adapted from code in tests.py.
 
 1. Create a view that's a subclass of DrillDownAPIView (use your own models; "Invoice" is just an example)::
 
