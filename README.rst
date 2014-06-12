@@ -26,6 +26,10 @@ Example adapted from code in tests.py.
         # Primary model for the API (required)
         model = Invoice
 
+        # The picky flag defaults to False; if True, then any bad field in the
+        # request will result in an error.
+        #picky = True
+
         # Optional list of chained foreignKey, manyToMany, and oneToOne objects
         # your users can drill down into -- note that you do not need to build
         # separate serializers for these; DrilldownAPI builds them dynamically.
@@ -78,8 +82,9 @@ Total number of results for each query (before applying limit and offset) are re
     ``X-Total-Count: 2034``
 
 
-Errors are also returned in a custom header code, usually with status 400:
+Errors and warnings are also returned in a custom header code. Errors get status 400; warnings are status 200.
     ``X-Query_Error: error text``
+    ``X-Query_Warning: warning text``
 
 Also supports format parameter, e.g. ?format=json
 
@@ -98,7 +103,7 @@ Solutions for Common Problems
 
     ``/invoices/?requires_authorization=True``
 
-    1. Add 'requires_authorization' to the ignore list in the API view:
+    1. Add your field to the ignore list in the API view:
         ``ignore = ['requires_authorizaton']``
 
     2. Add the logic for handling the new filter to ``get_base_query()`` in the API view::

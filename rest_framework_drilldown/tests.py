@@ -56,6 +56,12 @@ class DrilldownTestAPI(DrillDownAPIView):
         return test_Invoice.objects.all()
 
 
+# Build another, but one that's picky
+class PickyTestAPI(DrilldownTestAPI):
+    """a subclass of DrilldownTestAPI that will fail with bad fields"""
+    picky = True
+
+
 class DrilldownAPITest(TestCase):
     def setUp(self):
         mary_smith = test_Profile(last_name='Smith', first_name='Mary', spy_name='Mango')
@@ -98,6 +104,7 @@ class DrilldownAPITest(TestCase):
 
     def test_the_api(self):
         my_view = DrilldownTestAPI.as_view()
+        picky_view = PickyTestAPI.as_view()
 
         # set debug true so that API will return X-Query-Count (number of queries run)
         saved_debug = settings.DEBUG
@@ -105,6 +112,9 @@ class DrilldownAPITest(TestCase):
 
         def get_response(data):
             return my_view(self.factory.get('/url/', data, content_type='application/json'))
+
+        def picky_response(data):
+            return picky_view(self.factory.get('/url/', data, content_type='application/json'))
 
         # return all results
         response = get_response({})
@@ -161,12 +171,26 @@ class DrilldownAPITest(TestCase):
         self.assertEqual(len(response.data), 0)
 
         # a bad filter
-        response = get_response({'salesperson.profile.dog_name': 'Freddyboy'})
-        self.assertEqual(response.status_code, 400)  # error
+        data = {'salesperson.profile.dog_name': 'Freddyboy', 'total__gt': 25}
+        response = get_response(data)
+        self.assertEqual(response.status_code, 200)  # returns results
+        self.assertEqual(len(response.data), 3)  # ignores bad field, just returns list of matching invoices
+        self.assertIsNone(response.get('X-Query_Error'))  # but returns warning
+        self.assertTrue('dog_name' in response.get('X-Query_Warning'))  # but returns warning
+        # with picky option on
+        response = picky_response(data)
+        self.assertEqual(response.status_code, 400)  # error; no results
+        self.assertEqual(len(response.data), 0)
         self.assertTrue('dog_name' in response.get('X-Query_Error'))
 
-        # an ignore field
-        response = get_response({'fakefield__lt': '3000', 'limit': 3})
+        # a bad field
+        data = {'fields': 'salesperson.profile.first_name,monkey'}
+        response = get_response(data)
+        self.assertEqual(response.status_code, 400)  # error!
+        self.assertEqual(len(response.data), 0)
+
+        # an ignore field, with picky option
+        response = picky_response({'fakefield__lt': '3000', 'limit': 3})
         self.assertEqual(response.status_code, 200)  # no error, as 'fakefield' is in the ignore list
         self.assertEqual(len(response.data), 3)
 

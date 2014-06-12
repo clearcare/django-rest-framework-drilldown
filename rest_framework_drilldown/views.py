@@ -42,10 +42,12 @@ class DrillDownAPIView(APIView):
     drilldowns = None  # override this to allow drilldowns into sub-objects
     ignore = None  # override this with fieldnames that should be ignored in the GET request
     hide = None
-    model = None     # override this with the model
+    model = None  # override this with the model
+    picky = False  # if true, will error 400 if any bad fields are included
 
     def __init__(self, *args, **kwargs):
         self.error = ''
+        self.warning = ''
 
         # deal with None's that should be arrays
         self.ignore = self.ignore or []
@@ -74,12 +76,13 @@ class DrillDownAPIView(APIView):
         headers = {}
 
         def _result(status=200):
+            if self.warning:
+                headers['X-Query_Warning'] = self.warning
             return Response(data,
                             headers=headers,
                             status=status)
 
         def _error(msg='Error'):
-            print msg
             headers['X-Query_Error'] = msg
             return _result(status=400)
 
@@ -301,7 +304,8 @@ class DrillDownAPIView(APIView):
             def do_filter(dot_string, filter_string, current_model):
                 """
                 Recursive function that takes 'invoice.client.last_name'
-                and puts out a string like 'invoice__client__last_name' after validating that all the fields exist
+                and puts out a string like 'invoice__client__last_name' after validating that all the fields are
+                valid and accessible to the user
                 """
                 parts = dot_string.split('.', 1)
                 fieldname = parts[0]
@@ -312,16 +316,25 @@ class DrillDownAPIView(APIView):
                     leftover = ''
 
                 if not is_field_in(current_model, fieldname):
-                    self.error = ('"%s" is not a valid filter' % fieldname)
+                    if self.picky:
+                        self.error = ('"%s" is not a valid filter' % fieldname)
+                    else:
+                        self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
                     return None
 
                 if leftover:
                     field_type = get_field_type(current_model, fieldname)
                     if filter_string not in self.drilldowns:
-                        self.error = 'Error in filters: %s' % filter_string.replace('__', '.')
+                        if self.picky:
+                            self.error = 'Error in filters: %s' % filter_string.replace('__', '.')
+                        else:
+                            self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
                         return None
                     if field_type not in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
-                        self.error = ('Error: %s has no children' % filter_string)
+                        if self.picky:
+                            self.error = ('Error: %s has no children' % filter_string)
+                        else:
+                            self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
                         return None
 
                     # go to the related model
