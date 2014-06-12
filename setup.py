@@ -8,7 +8,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='djangorestframework-drilldown',
-    version='0.1.0',
+    version='0.1.1',
     url='http://github.com/peterh32/django-rest-framework-drilldown',
     license='MIT',
     packages=['rest_framework_drilldown'],
