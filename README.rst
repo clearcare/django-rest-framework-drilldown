@@ -67,6 +67,12 @@ Example adapted from code in tests.py.
 
     Lists invoices where total >= $100 and salesperson is "Smith".
 
+* Filter on dates and booleans:
+    ``/invoices/?paid=false&bill_date__lt=2014-05-01``
+
+
+    Dates are formatted YYYY-MM-DD and booleans may be true, True, false, or False.
+
 * Use the 'ALL' keyword to return all fields in an object:
     ``/invoices/?fields=salesperson.ALL``
 
@@ -87,6 +93,11 @@ Errors and warnings are also returned in a custom header code. Errors get status
     ``X-Query_Warning: warning text``
 
 Also supports format parameter, e.g. ?format=json
+
+POST requests
+-------------
+DrillDownAPIView overrides the Django REST Framework's get() method. It does not affect post() and other methods
+at all, so your DrillDownAPIView class may include a standard Django REST Framework post() method.
 
 Solutions for Common Problems
 -----------------------------
