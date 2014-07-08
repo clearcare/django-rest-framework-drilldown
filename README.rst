@@ -26,7 +26,11 @@ Example adapted from code in tests.py.
         # Primary model for the API (required)
         model = Invoice
 
-        # The picky flag defaults to False; if True, then any bad field in the
+        # Global throttle for the API. Defaults to 1000. If your query hits MAX_RESULTS,
+        # this is noted in X-Query_Warning in the response header.
+        MAX_RESULTS = 5000
+
+        # The picky flag defaults to False; if True, then any unidentifiable param in the
         # request will result in an error.
         #picky = True
 

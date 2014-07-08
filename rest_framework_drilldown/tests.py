@@ -62,6 +62,12 @@ class PickyTestAPI(DrilldownTestAPI):
     picky = True
 
 
+# Build another with a low limit
+class TwoItemMaxTestAPI(DrilldownTestAPI):
+    """a subclass of DrilldownTestAPI that will fail with bad fields"""
+    MAX_RESULTS = 2
+
+
 class DrilldownAPITest(TestCase):
     def setUp(self):
         mary_smith = test_Profile(last_name='Smith', first_name='Mary', spy_name='Mango')
@@ -105,6 +111,7 @@ class DrilldownAPITest(TestCase):
     def test_the_api(self):
         my_view = DrilldownTestAPI.as_view()
         picky_view = PickyTestAPI.as_view()
+        two_item_view = TwoItemMaxTestAPI.as_view()
 
         # set debug true so that API will return X-Query-Count (number of queries run)
         saved_debug = settings.DEBUG
@@ -116,9 +123,16 @@ class DrilldownAPITest(TestCase):
         def picky_response(data):
             return picky_view(self.factory.get('/url/', data, content_type='application/json'))
 
+        def two_item_response(data):
+            return two_item_view(self.factory.get('/url/', data, content_type='application/json'))
+
         # return all results
         response = get_response({})
         self.assertEqual(len(response.data), 5)
+        # test w MAX_RESULTS
+        response = two_item_response({})
+        self.assertEqual(len(response.data), 2)
+        self.assertTrue('hit global maximum' in response.get('X-Query_Warning'))
 
         # a filter
         response = get_response({'salesperson.profile.first_name': 'Ann'})
@@ -175,13 +189,21 @@ class DrilldownAPITest(TestCase):
         response = get_response(data)
         self.assertEqual(response.status_code, 200)  # returns results
         self.assertEqual(len(response.data), 3)  # ignores bad field, just returns list of matching invoices
-        self.assertIsNone(response.get('X-Query_Error'))  # but returns warning
+        self.assertIsNone(response.get('X-Query_Error'))  # no error
         self.assertTrue('dog_name' in response.get('X-Query_Warning'))  # but returns warning
         # with picky option on
         response = picky_response(data)
         self.assertEqual(response.status_code, 400)  # error; no results
         self.assertEqual(len(response.data), 0)
         self.assertTrue('dog_name' in response.get('X-Query_Error'))
+
+        # 2 bad filters
+        data = {'foo': '12', 'bar__lt': 11, 'total__gt': 25}
+        response = get_response(data)
+        self.assertEqual(response.status_code, 200)  # returns results
+        self.assertEqual(len(response.data), 3)  # ignores bad field, just returns list of matching invoices
+        self.assertIsNone(response.get('X-Query_Error'))  # no error
+        self.assertTrue('foo' in response.get('X-Query_Warning') and 'bar' in response.get('X-Query_Warning'))
 
         # a bad field
         data = {'fields': 'salesperson.profile.first_name,monkey'}
@@ -192,6 +214,7 @@ class DrilldownAPITest(TestCase):
         # an ignore field, with picky option
         response = picky_response({'fakefield__lt': '3000', 'limit': 3})
         self.assertEqual(response.status_code, 200)  # no error, as 'fakefield' is in the ignore list
+        self.assertIsNone(response.get('X-Query_Warning'))  # no warning -- it's in the ignore list
         self.assertEqual(len(response.data), 3)
 
         # ALL selector

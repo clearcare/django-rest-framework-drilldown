@@ -36,14 +36,14 @@ class DrillDownAPIView(APIView):
     Returns results with header codes:
         X-Total-Count: the total match count before applying limit or offset
         X-Query_Error: any errors, usually returned with status 400
+        X-Query_Warning: warning, returned with status 200
     """
-    GLOBAL_THROTTLE = 2000  # global max result count
-
     drilldowns = None  # override this to allow drilldowns into sub-objects
     ignore = None  # override this with fieldnames that should be ignored in the GET request
     hide = None
     model = None  # override this with the model
     picky = False  # if true, will error 400 if any bad fields are included
+    MAX_RESULTS = 1000  # max result count; can override in your api
 
     def __init__(self, *args, **kwargs):
         self.error = ''
@@ -142,7 +142,7 @@ class DrillDownAPIView(APIView):
         # Deal with offset and limit
         self.offset = int_or_none(self.request.QUERY_PARAMS.get('offset')) or 0
         self.limit = int_or_none(self.request.QUERY_PARAMS.get('limit')) or 0
-        self.limit = min(getattr(self, 'THROTTLE', self.GLOBAL_THROTTLE), self.limit or self.GLOBAL_THROTTLE)
+        self.limit = min(self.MAX_RESULTS, self.limit or self.MAX_RESULTS)
         if self.limit and self.offset:
             qs = qs[self.offset:self.limit + self.offset]
         elif self.limit:
@@ -162,6 +162,8 @@ class DrillDownAPIView(APIView):
         # get total count if 1) your count = the limit, or 2) the query has an offset.
         if self.offset or (len(data) and len(data) == self.limit):
             total_count = queryset_for_count.count()
+            if len(data) == self.MAX_RESULTS:
+                self.warning += 'Number of results hit global maximum.  '
         else:
             total_count = len(data)
         headers = {'X-Total-Count': total_count}
@@ -319,7 +321,7 @@ class DrillDownAPIView(APIView):
                     if self.picky:
                         self.error = ('"%s" is not a valid filter' % fieldname)
                     else:
-                        self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
+                        self.warning += '"%s" is not a valid parameter.  ' % filter_string.replace('__', '.')
                     return None
 
                 if leftover:
@@ -328,13 +330,13 @@ class DrillDownAPIView(APIView):
                         if self.picky:
                             self.error = 'Error in filters: %s' % filter_string.replace('__', '.')
                         else:
-                            self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
+                            self.warning += '"%s" is not a valid parameter.  ' % filter_string.replace('__', '.')
                         return None
                     if field_type not in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
                         if self.picky:
                             self.error = ('Error: %s has no children' % filter_string)
                         else:
-                            self.warning = '"%s" is not a valid parameter' % filter_string.replace('__', '.')
+                            self.warning += '"%s" is not a valid parameter.  ' % filter_string.replace('__', '.')
                         return None
 
                     # go to the related model
