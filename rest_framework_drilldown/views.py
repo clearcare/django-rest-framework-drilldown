@@ -163,7 +163,7 @@ class DrillDownAPIView(APIView):
         if self.offset or (len(data) and len(data) == self.limit):
             total_count = queryset_for_count.count()
             if len(data) == self.MAX_RESULTS:
-                self.warning += 'Number of results hit global maximum.  '
+                self.warning += 'Number of results hit global maximum (%s results).  ' % self.MAX_RESULTS
         else:
             total_count = len(data)
         headers = {'X-Total-Count': total_count}
