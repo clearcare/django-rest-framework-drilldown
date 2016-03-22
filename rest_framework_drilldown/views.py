@@ -91,12 +91,12 @@ class DrillDownAPIView(APIView):
             headers['X-Query_Error'] = msg
             return _result(status=400)
 
-        fields = self.request.QUERY_PARAMS.get('fields', [])
+        fields = self.request.query_params.get('fields', [])
         fields = fields and fields.split(',')  # fields parameter is a comma-delimited list
 
         # get parameters that will be used as filters
         filters = {}
-        request_params = self.request.QUERY_PARAMS
+        request_params = self.request.query_params
         for f in request_params:
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
@@ -138,15 +138,15 @@ class DrillDownAPIView(APIView):
         queryset_for_count = qs  # saving this off so we can use it later before we add limits
 
         # Deal with ordering
-        order_by = self.request.QUERY_PARAMS.get('order_by', '').replace('.', '__')
+        order_by = self.request.query_params.get('order_by', '').replace('.', '__')
         # would be nice to validate order_by fields here, but difficult, so we just trap below
         if order_by:
             order_by = order_by.split(',')
             qs = qs.order_by(*order_by)
 
         # Deal with offset and limit
-        self.offset = int_or_none(self.request.QUERY_PARAMS.get('offset')) or 0
-        self.limit = int_or_none(self.request.QUERY_PARAMS.get('limit')) or 0
+        self.offset = int_or_none(self.request.query_params.get('offset')) or 0
+        self.limit = int_or_none(self.request.query_params.get('limit')) or 0
         self.limit = min(self.MAX_RESULTS, self.limit or self.MAX_RESULTS)
         if self.limit and self.offset:
             qs = qs[self.offset:self.limit + self.offset]
@@ -353,7 +353,7 @@ class DrillDownAPIView(APIView):
             filter_string = do_filter(dot_string, '', self.model)
 
             if filter_string:
-                filter_kwargs[filter_string + operation] = self.request.QUERY_PARAMS[p]
+                filter_kwargs[filter_string + operation] = self.request.query_params[p]
 
         for k in filter_kwargs:
             if filter_kwargs[k] in ['true', 'True']:
