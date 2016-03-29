@@ -217,6 +217,7 @@ class DrillDownAPIView(APIView):
         def add_to_fields_map(current_model, current_map, dot_string, current_related=''):
             pair = dot_string.split('.', 1)
             fieldname = (pair[0]).strip()
+
             there_are_subfields = len(pair) > 1
             if not (fieldname == 'ALL' or is_field_in(current_model, fieldname)):  # ALL is allowed in fields_map
                 self.error = ('%s: "%s" is not a valid field' % (ERROR_STRING, dot_string))
@@ -397,8 +398,12 @@ def DrilldownSerializerFactory(the_model):
                             ftype = get_field_type(model, field_name)
                             if ftype in [ForeignKey, OneToOneField, ForeignObjectRel, ManyToManyField]:
                                 m = get_model(model, field_name)
-                                self.fields[field_name] = DrilldownSerializerFactory(m)(
-                                    fields_map=fields_map[field_name])  # recursively create another serializer
+                                if ftype == ManyToManyField:
+                                    self.fields[field_name] = DrilldownSerializerFactory(m)(
+                                        fields_map=fields_map[field_name], many=True)  # recursively create another serializer
+                                else:
+                                    self.fields[field_name] = DrilldownSerializerFactory(m)(
+                                        fields_map=fields_map[field_name])  # recursively create another serializer
 
                 prune_fields(fields_map=fields_map, model=self.Meta.model)
             else:
