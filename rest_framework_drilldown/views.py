@@ -236,7 +236,8 @@ class DrillDownAPIView(APIView):
             if fieldname == 'ALL':
                 # add in all the fields for the model
                 fname_prefix = current_related.replace('__', '.') + '.'
-                for fname in current_model._meta.get_all_field_names():
+                for f in current_model._meta.get_fields():
+                    fname = f.name
                     if (fname_prefix + fname).strip('.') in self.hide_fields:
                         continue  # skip it
                     field_type = get_field_type(current_model, fname)
@@ -427,11 +428,11 @@ def DrilldownSerializerFactory(the_model):
 # Some utilities
 def get_model(parent_model, fieldname):
     """Get the model of a foreignkey, manytomany, etc. field"""
-    field_type = type(parent_model._meta.get_field_by_name(fieldname)[0])
+    field_type = type(parent_model._meta.get_field(fieldname))
     if field_type in [ForeignKey, ManyToManyField, OneToOneField]:
         model = parent_model._meta.get_field(fieldname).rel.to
     elif field_type == ForeignObjectRel:
-        model = parent_model._meta.get_field_by_name(fieldname)[0].model
+        model = parent_model._meta.get_field(fieldname).model
     else:
         model = None
     return model
@@ -439,12 +440,12 @@ def get_model(parent_model, fieldname):
 
 def get_field_type(model, fieldname):
     """Get the type of a field in a model"""
-    return type(model._meta.get_field_by_name(fieldname)[0])
+    return type(model._meta.get_field(fieldname))
 
 
 def is_field_in(model, fieldname):
     """Return true if fieldname is a field or relatedobject in model"""
-    fieldnames = model._meta.get_all_field_names()
+    fieldnames = [f.name for f in model._meta.get_fields()]
     return fieldname in fieldnames
 
 
