@@ -70,7 +70,7 @@ class DrillDownAPIView(APIView):
 
         super(DrillDownAPIView, self).__init__(*args, **kwargs)
 
-    def get_base_query(self):   # override this to return your base query
+    def get_base_query(self, *args, **kwargs):   # override this to return your base query
         return None
 
     def get(self, request, *args, **kwargs):
@@ -102,6 +102,8 @@ class DrillDownAPIView(APIView):
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
 
+        kwargs.pop('version')
+        
         qs = self.get_base_query(*args, **kwargs)
 
         if qs is None:
