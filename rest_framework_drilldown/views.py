@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import connection
+from django.http import Http404
 from django.db.models.fields.related import ForeignKey, OneToOneField, ManyToManyField
 try:
    from django.db.models.related import RelatedObject as ForeignObjectRel
@@ -101,7 +102,8 @@ class DrillDownAPIView(APIView):
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
 
-        qs = self.get_base_query()
+        qs = self.get_base_query(*args, **kwargs)
+
         if qs is None:
             return _error('API error: get_base_query() missing or invalid')
 
@@ -160,7 +162,13 @@ class DrillDownAPIView(APIView):
 
         # return the response
         try:
-            data = serializer.data
+            if 'pk' in kwargs:
+                if len(serializer.data) == 1:
+                    data = serializer.data[0]
+                else:
+                    raise Http404
+            else:
+                data = serializer.data
         except FieldError:
             return _error('Error: May be bad field name in order_by')  # typical error
 
