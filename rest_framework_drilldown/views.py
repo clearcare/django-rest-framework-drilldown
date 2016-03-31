@@ -72,7 +72,7 @@ class DrillDownAPIView(APIView):
     def get_base_query(self):   # override this to return your base query
         return None
 
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         """The main method in this object; handles a GET request with filters, fields, etc."""
         if settings.DEBUG:
             num_queries = len(connection.queries)  # just for testing
