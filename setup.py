@@ -17,5 +17,5 @@ setup(
     long_description=README,
     author='Peter Hollingsworth',
     author_email='peter@hollingsworth.net',
-    install_requires=['djangorestframework'],
+    install_requires=[],
 )
