@@ -102,8 +102,9 @@ class DrillDownAPIView(APIView):
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
 
-        kwargs.pop('version')
-        
+        if 'version' in kwargs:
+            kwargs.pop('version')
+
         qs = self.get_base_query(*args, **kwargs)
 
         if qs is None:
@@ -381,6 +382,7 @@ def DrilldownSerializerFactory(the_model):
     class Serializer(serializers.ModelSerializer):
         class Meta:
             model = the_model
+            fields = '__all__'
 
         def __init__(self, *args, **kwargs):
             # pull off the fields_map argument; don't pass to superclass
