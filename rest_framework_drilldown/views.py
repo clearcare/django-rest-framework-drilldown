@@ -247,7 +247,7 @@ class DrillDownAPIView(APIView):
                         if temp not in self.drilldowns:
                             continue  # don't add this one
                     add_to_fields_map(current_model, current_map, dot_string=fname, current_related=current_related)
-            else:
+            elif fieldname not in self.hide_fields:
                 # add it to the map
                 if current_map.get(fieldname) is None:
                     current_map[fieldname] = {}
