@@ -102,8 +102,7 @@ class DrillDownAPIView(APIView):
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
 
-        if 'version' in kwargs:
-            kwargs.pop('version')
+        kwargs.pop('version', None)
 
         qs = self.get_base_query(*args, **kwargs)
 
