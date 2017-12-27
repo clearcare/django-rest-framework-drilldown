@@ -1,6 +1,12 @@
 from django.conf import settings
 from django.db import connection
-from django.db.models.fields.related import ForeignKey, OneToOneField, ManyToManyField, RelatedObject
+from django.http import Http404
+from django.db.models.fields.related import ForeignKey, OneToOneField, ManyToManyField
+try:
+   from django.db.models.related import RelatedObject as ForeignObjectRel
+except:
+  # django 1.8 +
+  from django.db.models.fields.related import ForeignObjectRel
 from django.core.exceptions import FieldError
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -64,10 +70,10 @@ class DrillDownAPIView(APIView):
 
         super(DrillDownAPIView, self).__init__(*args, **kwargs)
 
-    def get_base_query(self):   # override this to return your base query
+    def get_base_query(self, *args, **kwargs):   # override this to return your base query
         return None
 
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         """The main method in this object; handles a GET request with filters, fields, etc."""
         if settings.DEBUG:
             num_queries = len(connection.queries)  # just for testing
@@ -86,17 +92,20 @@ class DrillDownAPIView(APIView):
             headers['X-Query_Error'] = msg
             return _result(status=400)
 
-        fields = self.request.QUERY_PARAMS.get('fields', [])
+        fields = self.request.query_params.get('fields', [])
         fields = fields and fields.split(',')  # fields parameter is a comma-delimited list
 
         # get parameters that will be used as filters
         filters = {}
-        request_params = self.request.QUERY_PARAMS
+        request_params = self.request.query_params
         for f in request_params:
             if f.split('__')[0] not in self.ignore_fields:   # split so you catch things like "invoice.total__lt=10000"
                 filters[f] = request_params[f]
 
-        qs = self.get_base_query()
+        kwargs.pop('version', None)
+
+        qs = self.get_base_query(*args, **kwargs)
+
         if qs is None:
             return _error('API error: get_base_query() missing or invalid')
 
@@ -133,15 +142,15 @@ class DrillDownAPIView(APIView):
         queryset_for_count = qs  # saving this off so we can use it later before we add limits
 
         # Deal with ordering
-        order_by = self.request.QUERY_PARAMS.get('order_by', '').replace('.', '__')
+        order_by = self.request.query_params.get('order_by', '').replace('.', '__')
         # would be nice to validate order_by fields here, but difficult, so we just trap below
         if order_by:
             order_by = order_by.split(',')
             qs = qs.order_by(*order_by)
 
         # Deal with offset and limit
-        self.offset = int_or_none(self.request.QUERY_PARAMS.get('offset')) or 0
-        self.limit = int_or_none(self.request.QUERY_PARAMS.get('limit')) or 0
+        self.offset = int_or_none(self.request.query_params.get('offset')) or 0
+        self.limit = int_or_none(self.request.query_params.get('limit')) or 0
         self.limit = min(self.MAX_RESULTS, self.limit or self.MAX_RESULTS)
         if self.limit and self.offset:
             qs = qs[self.offset:self.limit + self.offset]
@@ -155,7 +164,13 @@ class DrillDownAPIView(APIView):
 
         # return the response
         try:
-            data = serializer.data
+            if 'pk' in kwargs:
+                if len(serializer.data) == 1:
+                    data = serializer.data[0]
+                else:
+                    raise Http404
+            else:
+                data = serializer.data
         except FieldError:
             return _error('Error: May be bad field name in order_by')  # typical error
 
@@ -186,7 +201,7 @@ class DrillDownAPIView(APIView):
                 return None
             new_model = get_model(current_model, fieldname)
             if not new_model:
-                self.error = ('%s: "%s" is not a ForeignKey, ManyToMany, OneToOne, or RelatedObject.'
+                self.error = ('%s: "%s" is not a ForeignKey, ManyToMany, OneToOne, or ForeignObjectRel.'
                               % (ERROR_STRING, fieldname))
                 return None
             current_string = (current_string + '__' + fieldname).strip('__')
@@ -212,6 +227,7 @@ class DrillDownAPIView(APIView):
         def add_to_fields_map(current_model, current_map, dot_string, current_related=''):
             pair = dot_string.split('.', 1)
             fieldname = (pair[0]).strip()
+
             there_are_subfields = len(pair) > 1
             if not (fieldname == 'ALL' or is_field_in(current_model, fieldname)):  # ALL is allowed in fields_map
                 self.error = ('%s: "%s" is not a valid field' % (ERROR_STRING, dot_string))
@@ -220,7 +236,8 @@ class DrillDownAPIView(APIView):
             if fieldname == 'ALL':
                 # add in all the fields for the model
                 fname_prefix = current_related.replace('__', '.') + '.'
-                for fname in current_model._meta.get_all_field_names():
+                for f in current_model._meta.get_fields():
+                    fname = f.name
                     if (fname_prefix + fname).strip('.') in self.hide_fields:
                         continue  # skip it
                     field_type = get_field_type(current_model, fname)
@@ -230,7 +247,7 @@ class DrillDownAPIView(APIView):
                         if temp not in self.drilldowns:
                             continue  # don't add this one
                     add_to_fields_map(current_model, current_map, dot_string=fname, current_related=current_related)
-            else:
+            elif fieldname not in self.hide_fields:
                 # add it to the map
                 if current_map.get(fieldname) is None:
                     current_map[fieldname] = {}
@@ -244,7 +261,7 @@ class DrillDownAPIView(APIView):
                     current_related = (current_related + '__' + fieldname).strip('__')
                     if current_related in self.drilldowns:
                         field_type = get_field_type(current_model, fieldname)
-                        if field_type in [ForeignKey, OneToOneField, RelatedObject]:
+                        if field_type in [ForeignKey, OneToOneField, ForeignObjectRel]:
                             self.select_relateds.append(current_related)
                         else:
                             self.prefetch_relateds.append(current_related)
@@ -275,11 +292,11 @@ class DrillDownAPIView(APIView):
             if current_map[fieldname]:  # e.g. if there are sub-fields
                 field_type = get_field_type(current_model, fieldname)
                 current_string = (current_string + '__' + fieldname).strip('__')
-                if field_type in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                if field_type in [ForeignKey, OneToOneField, ForeignObjectRel, ManyToManyField]:
                     if not current_string in self.drilldowns:
                         self.error = ('Error: %s not valid' % current_string.replace('__', '.'))
                         return None
-                    if field_type in [ForeignKey, OneToOneField, RelatedObject]:
+                    if field_type in [ForeignKey, OneToOneField, ForeignObjectRel]:
                         self.select_relateds.append(current_string)
                     else:
                         self.prefetch_relateds.append(current_string)
@@ -332,7 +349,7 @@ class DrillDownAPIView(APIView):
                         else:
                             self.warning += '"%s" is not a valid parameter.  ' % filter_string.replace('__', '.')
                         return None
-                    if field_type not in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                    if field_type not in [ForeignKey, OneToOneField, ForeignObjectRel, ManyToManyField]:
                         if self.picky:
                             self.error = ('Error: %s has no children' % filter_string)
                         else:
@@ -348,7 +365,7 @@ class DrillDownAPIView(APIView):
             filter_string = do_filter(dot_string, '', self.model)
 
             if filter_string:
-                filter_kwargs[filter_string + operation] = self.request.QUERY_PARAMS[p]
+                filter_kwargs[filter_string + operation] = self.request.query_params[p]
 
         for k in filter_kwargs:
             if filter_kwargs[k] in ['true', 'True']:
@@ -364,6 +381,7 @@ def DrilldownSerializerFactory(the_model):
     class Serializer(serializers.ModelSerializer):
         class Meta:
             model = the_model
+            fields = '__all__'
 
         def __init__(self, *args, **kwargs):
             # pull off the fields_map argument; don't pass to superclass
@@ -390,10 +408,14 @@ def DrilldownSerializerFactory(the_model):
                         sub_fm = fields_map[field_name]
                         if sub_fm and sub_fm != {'id': {}}:  # only do this for fields with sub-fields requested
                             ftype = get_field_type(model, field_name)
-                            if ftype in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                            if ftype in [ForeignKey, OneToOneField, ForeignObjectRel, ManyToManyField]:
                                 m = get_model(model, field_name)
-                                self.fields[field_name] = DrilldownSerializerFactory(m)(
-                                    fields_map=fields_map[field_name])  # recursively create another serializer
+                                if ftype == ManyToManyField:
+                                    self.fields[field_name] = DrilldownSerializerFactory(m)(
+                                        fields_map=fields_map[field_name], many=True)  # recursively create another serializer
+                                else:
+                                    self.fields[field_name] = DrilldownSerializerFactory(m)(
+                                        fields_map=fields_map[field_name])  # recursively create another serializer
 
                 prune_fields(fields_map=fields_map, model=self.Meta.model)
             else:
@@ -407,11 +429,11 @@ def DrilldownSerializerFactory(the_model):
 # Some utilities
 def get_model(parent_model, fieldname):
     """Get the model of a foreignkey, manytomany, etc. field"""
-    field_type = type(parent_model._meta.get_field_by_name(fieldname)[0])
+    field_type = type(parent_model._meta.get_field(fieldname))
     if field_type in [ForeignKey, ManyToManyField, OneToOneField]:
         model = parent_model._meta.get_field(fieldname).rel.to
-    elif field_type == RelatedObject:
-        model = parent_model._meta.get_field_by_name(fieldname)[0].model
+    elif field_type == ForeignObjectRel:
+        model = parent_model._meta.get_field(fieldname).model
     else:
         model = None
     return model
@@ -419,12 +441,12 @@ def get_model(parent_model, fieldname):
 
 def get_field_type(model, fieldname):
     """Get the type of a field in a model"""
-    return type(model._meta.get_field_by_name(fieldname)[0])
+    return type(model._meta.get_field(fieldname))
 
 
 def is_field_in(model, fieldname):
     """Return true if fieldname is a field or relatedobject in model"""
-    fieldnames = model._meta.get_all_field_names()
+    fieldnames = [f.name for f in model._meta.get_fields()]
     return fieldname in fieldnames
 
 
