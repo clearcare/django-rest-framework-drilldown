@@ -346,7 +346,13 @@ class DrillDownAPIView(APIView):
             filter_string = do_filter(dot_string, '', self.model)
 
             if filter_string:
-                filter_kwargs[filter_string + operation] = self.request.QUERY_PARAMS[p]
+                # __in operator requires a list to work with so making it a special case for now.
+                # And adding it in list to support multiple operators that require similar logic
+                if operation in ["__in"]:
+                    comma_separated_multiple_values = self.request.QUERY_PARAMS[p]
+                    filter_kwargs[filter_string + operation] = comma_separated_multiple_values.split(",")
+                else:
+                    filter_kwargs[filter_string + operation] = self.request.QUERY_PARAMS[p]
 
         for k in filter_kwargs:
             if filter_kwargs[k] in ['true', 'True']:
