@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import connection
-from django.db.models.fields.related import ForeignKey, OneToOneField, ManyToManyField, RelatedObject
+from django.db.models.fields.related import ForeignKey, OneToOneField, ManyToManyField, ManyToOneRel, OneToOneRel
 from django.core.exceptions import FieldError
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -186,7 +186,7 @@ class DrillDownAPIView(APIView):
                 return None
             new_model = get_model(current_model, fieldname)
             if not new_model:
-                self.error = ('%s: "%s" is not a ForeignKey, ManyToMany, OneToOne, or RelatedObject.'
+                self.error = ('%s: "%s" is not a ForeignKey, ManyToMany, OneToOne, ManyToOneRel, or OneToOneRel.'
                               % (ERROR_STRING, fieldname))
                 return None
             current_string = (current_string + '__' + fieldname).strip('__')
@@ -244,7 +244,7 @@ class DrillDownAPIView(APIView):
                     current_related = (current_related + '__' + fieldname).strip('__')
                     if current_related in self.drilldowns:
                         field_type = get_field_type(current_model, fieldname)
-                        if field_type in [ForeignKey, OneToOneField, RelatedObject]:
+                        if field_type in [ForeignKey, OneToOneField, ManyToOneRel, OneToOneRel]:
                             self.select_relateds.append(current_related)
                         else:
                             self.prefetch_relateds.append(current_related)
@@ -275,11 +275,11 @@ class DrillDownAPIView(APIView):
             if current_map[fieldname]:  # e.g. if there are sub-fields
                 field_type = get_field_type(current_model, fieldname)
                 current_string = (current_string + '__' + fieldname).strip('__')
-                if field_type in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                if field_type in [ForeignKey, OneToOneField, ManyToOneRel, OneToOneRel, ManyToManyField]:
                     if not current_string in self.drilldowns:
                         self.error = ('Error: %s not valid' % current_string.replace('__', '.'))
                         return None
-                    if field_type in [ForeignKey, OneToOneField, RelatedObject]:
+                    if field_type in [ForeignKey, OneToOneField, ManyToOneRel, OneToOneRel]:
                         self.select_relateds.append(current_string)
                     else:
                         self.prefetch_relateds.append(current_string)
@@ -332,7 +332,7 @@ class DrillDownAPIView(APIView):
                         else:
                             self.warning += '"%s" is not a valid parameter.  ' % filter_string.replace('__', '.')
                         return None
-                    if field_type not in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                    if field_type not in [ForeignKey, OneToOneField, ManyToOneRel, OneToOneRel, ManyToManyField]:
                         if self.picky:
                             self.error = ('Error: %s has no children' % filter_string)
                         else:
@@ -396,7 +396,7 @@ def DrilldownSerializerFactory(the_model):
                         sub_fm = fields_map[field_name]
                         if sub_fm and sub_fm != {'id': {}}:  # only do this for fields with sub-fields requested
                             ftype = get_field_type(model, field_name)
-                            if ftype in [ForeignKey, OneToOneField, RelatedObject, ManyToManyField]:
+                            if ftype in [ForeignKey, OneToOneField, ManyToOneRel, OneToOneRel, ManyToManyField]:
                                 m = get_model(model, field_name)
                                 self.fields[field_name] = DrilldownSerializerFactory(m)(
                                     fields_map=fields_map[field_name])  # recursively create another serializer
@@ -413,11 +413,14 @@ def DrilldownSerializerFactory(the_model):
 # Some utilities
 def get_model(parent_model, fieldname):
     """Get the model of a foreignkey, manytomany, etc. field"""
-    field_type = type(parent_model._meta.get_field_by_name(fieldname)[0])
+    field_class = parent_model._meta.get_field(fieldname)
+    field_type = type(field_class)
     if field_type in [ForeignKey, ManyToManyField, OneToOneField]:
         model = parent_model._meta.get_field(fieldname).rel.to
-    elif field_type == RelatedObject:
+    elif field_type == ManyToOneRel:
         model = parent_model._meta.get_field_by_name(fieldname)[0].model
+    elif field_type == OneToOneRel:
+        model = field_class.related_model
     else:
         model = None
     return model
